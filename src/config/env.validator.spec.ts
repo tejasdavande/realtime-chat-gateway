@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { validate } from './env.validator';
 
 describe('validate', () => {
-  const base = { PORT: '3000', REDIS_HOST: 'localhost', REDIS_PORT: '6379' };
+  const base = { PORT: '3000', REDIS_HOST: 'localhost', REDIS_PORT: '6379', JWT_SECRET: 'secret' };
 
   it('converts PORT and REDIS_PORT to numbers', () => {
     const env = validate(base);
@@ -13,6 +13,10 @@ describe('validate', () => {
 
   it('rejects a missing REDIS_HOST', () => {
     expect(() => validate({ ...base, REDIS_HOST: undefined })).toThrow();
+  });
+
+  it('rejects an empty JWT_SECRET', () => {
+    expect(() => validate({ ...base, JWT_SECRET: '' })).toThrow();
   });
 
   it('rejects an out of range REDIS_PORT', () => {

@@ -23,6 +23,7 @@ jobs:
       PORT: 3000
       REDIS_HOST: localhost
       REDIS_PORT: 6379
+      JWT_SECRET: ci-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

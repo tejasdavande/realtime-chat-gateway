@@ -15,6 +15,21 @@ npm run start:dev
 
 `GET /health` returns `{"status":"ok","redis":"up"}`, or 503 when Redis is down.
 
+## Connecting
+
+Clients connect with Socket.io and pass an access token from auth-gateway-service in the handshake:
+
+```js
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000', { auth: { token: accessToken } });
+socket.on('connect_error', (err) => console.log(err.message)); // "unauthorized"
+```
+
+The token is checked against `JWT_SECRET` (HS256, the same secret auth-gateway-service signs with). A missing, forged or expired token fails the handshake with `unauthorized`, so the socket never connects.
+
+Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other.
+
 ## Tests
 
 ```
