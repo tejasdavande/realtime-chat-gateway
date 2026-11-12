@@ -8,7 +8,7 @@ describe('SocketAuthService', () => {
   const service = new SocketAuthService(
     new JwtService({ secret, verifyOptions: { algorithms: ['HS256'] } })
   );
-  const claims = { sub: 'user-1', email: 'a@example.com', role: 'member' };
+  const claims = { sub: 'user-1', email: 'a@example.com', role: 'member', token_use: 'access' };
 
   it('returns the user from a valid token', async () => {
     const token = signer.sign(claims, { expiresIn: '1m' });
@@ -44,6 +44,17 @@ describe('SocketAuthService', () => {
 
     await expect(service.authenticate(token)).rejects.toThrow(UnauthorizedException);
   });
+
+  it.each([{ token_use: 'refresh' }, { token_use: undefined }])(
+    'rejects a token that is not an access token (%p)',
+    async (override) => {
+      const token = signer.sign({ ...claims, ...override });
+
+      await expect(service.authenticate(token)).rejects.toThrow(
+        new UnauthorizedException('invalid token')
+      );
+    }
+  );
 
   it('rejects a token without the expected claims', async () => {
     const token = signer.sign({ sub: 'user-1' });

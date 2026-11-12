@@ -6,6 +6,7 @@ interface JwtPayload {
   sub?: unknown;
   email?: unknown;
   role?: unknown;
+  token_use?: unknown;
 }
 
 @Injectable()
@@ -24,7 +25,10 @@ export class SocketAuthService {
       throw new UnauthorizedException('invalid token');
     }
 
-    const { sub, email, role } = payload;
+    const { sub, email, role, token_use: tokenUse } = payload;
+    if (tokenUse !== 'access') {
+      throw new UnauthorizedException('invalid token');
+    }
     if (typeof sub !== 'string' || typeof email !== 'string' || typeof role !== 'string') {
       throw new UnauthorizedException('invalid token');
     }

@@ -9,7 +9,7 @@ describe('Chat socket auth (e2e)', () => {
   let app: INestApplication;
   let url: string;
   const sockets: Socket[] = [];
-  const claims = { sub: 'user-1', email: 'a@example.com', role: 'member' };
+  const claims = { sub: 'user-1', email: 'a@example.com', role: 'member', token_use: 'access' };
 
   const connect = (token?: string) => {
     const socket = io(url, {
@@ -58,6 +58,15 @@ describe('Chat socket auth (e2e)', () => {
 
   it('rejects a token signed with another secret', async () => {
     const token = new JwtService({ secret: 'not-the-secret' }).sign(claims);
+
+    await expect(connect(token)).rejects.toThrow('unauthorized');
+  });
+
+  it('rejects a refresh token', async () => {
+    const token = new JwtService({ secret: process.env.JWT_SECRET }).sign({
+      ...claims,
+      token_use: 'refresh',
+    });
 
     await expect(connect(token)).rejects.toThrow('unauthorized');
   });
