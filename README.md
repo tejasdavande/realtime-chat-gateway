@@ -30,6 +30,16 @@ The token is checked against `JWT_SECRET` (HS256, the same secret auth-gateway-s
 
 Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other.
 
+## Events
+
+| Event | Payload | Notes |
+|---|---|---|
+| `room:join` | `{ roomId }` | acks `{ roomId }`. `roomId` is 1-64 chars of `A-Za-z0-9_-` |
+| `room:leave` | `{ roomId }` | acks `{ roomId }` |
+| `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Acks the message and broadcasts `message:new` to the room |
+
+A bad payload or sending into a room you haven't joined makes the server emit `exception` with `{ status: 'error', message }`.
+
 ## Tests
 
 ```
