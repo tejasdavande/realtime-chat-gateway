@@ -20,9 +20,9 @@ describe('Chat rooms (e2e)', () => {
     urls.push(await app.getUrl());
   };
 
-  const connect = (instance: number, userId: string) => {
+  const connect = (instance: number, userId: string, role = 'member') => {
     const token = new JwtService({ secret: process.env.JWT_SECRET }).sign(
-      { sub: userId, email: `${userId}@example.com`, role: 'member', token_use: 'access' },
+      { sub: userId, email: `${userId}@example.com`, role, token_use: 'access' },
       { expiresIn: '1m' }
     );
     const socket = io(urls[instance], {
@@ -116,6 +116,34 @@ describe('Chat rooms (e2e)', () => {
     alice.emit('message:send', { roomId: randomUUID(), text: 'hi' });
 
     expect(await error).toMatchObject({ status: 'error', message: 'not in room' });
+  });
+
+  it('refuses members joining an admin- room and lets admins in', async () => {
+    const roomId = `admin-${randomUUID()}`;
+    const member = await connect(0, 'mallory');
+    const admin = await connect(1, 'root', 'admin');
+
+    const error = nextEvent(member, 'exception');
+    member.emit('room:join', { roomId });
+    expect(await error).toMatchObject({ status: 'error', message: 'forbidden' });
+
+    expect(await admin.emitWithAck('room:join', { roomId })).toEqual({ roomId });
+  });
+
+  it('lets members read an announce- room but not post to it', async () => {
+    const roomId = `announce-${randomUUID()}`;
+    const member = await connect(0, 'reader');
+    const admin = await connect(1, 'root', 'admin');
+    await member.emitWithAck('room:join', { roomId });
+    await admin.emitWithAck('room:join', { roomId });
+
+    const error = nextEvent(member, 'exception');
+    member.emit('message:send', { roomId, text: 'hi' });
+    expect(await error).toMatchObject({ status: 'error', message: 'forbidden' });
+
+    const received = nextEvent<{ text: string }>(member, 'message:new');
+    await admin.emitWithAck('message:send', { roomId, text: 'maintenance at 5' });
+    expect(await received).toMatchObject({ text: 'maintenance at 5' });
   });
 
   it.each([

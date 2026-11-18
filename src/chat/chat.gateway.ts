@@ -14,6 +14,7 @@ import { SocketAuthService } from '../auth/socket-auth.service';
 import { ChatServer, ChatSocket } from './chat-socket';
 import { JoinRoomDto } from './dto/join-room.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { RoomAccessService } from './room-access.service';
 import { roomName } from './room-name';
 
 @UsePipes(
@@ -30,7 +31,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   @WebSocketServer()
   private readonly server: ChatServer;
 
-  constructor(private readonly socketAuth: SocketAuthService) {}
+  constructor(
+    private readonly socketAuth: SocketAuthService,
+    private readonly roomAccess: RoomAccessService
+  ) {}
 
   afterInit(server: ChatServer) {
     server.use((socket, next) => {
@@ -48,6 +52,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   @SubscribeMessage('room:join')
   async joinRoom(@ConnectedSocket() socket: ChatSocket, @MessageBody() dto: JoinRoomDto) {
+    if (!this.roomAccess.canJoin(socket.data.user, dto.roomId)) {
+      throw new WsException('forbidden');
+    }
+
     await socket.join(roomName(dto.roomId));
 
     return { roomId: dto.roomId };
@@ -66,6 +74,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     if (!socket.rooms.has(room)) {
       throw new WsException('not in room');
+    }
+
+    if (!this.roomAccess.canSend(socket.data.user, dto.roomId)) {
+      throw new WsException('forbidden');
     }
 
     const message = {
