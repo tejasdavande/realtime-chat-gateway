@@ -36,7 +36,8 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 |---|---|---|
 | `room:join` | `{ roomId }` | acks `{ roomId }`. `roomId` is 1-64 chars of `A-Za-z0-9_-` |
 | `room:leave` | `{ roomId }` | acks `{ roomId }` |
-| `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Acks the message and broadcasts `message:new` to the room |
+| `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Saves the message to MongoDB, acks it and broadcasts `message:new` to the room |
+| `room:history` | `{ roomId, before?, limit? }` | the socket must have joined the room. Acks messages newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 
 A bad payload or sending into a room you haven't joined makes the server emit `exception` with `{ status: 'error', message }`.
 
