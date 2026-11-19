@@ -7,13 +7,13 @@ Work in progress.
 ## Quick start
 
 ```
-docker compose up -d redis
+docker compose up -d redis mongo
 cp .env.example .env
 npm install
 npm run start:dev
 ```
 
-`GET /health` returns `{"status":"ok","redis":"up"}`, or 503 when Redis is down.
+`GET /health` returns `{"status":"ok","mongo":"up","redis":"up"}`, or 503 when either is down.
 
 ## Connecting
 
@@ -47,7 +47,7 @@ npm test
 npm run test:e2e
 ```
 
-The e2e tests need Redis on `REDIS_HOST:REDIS_PORT`.
+The e2e tests need Redis on `REDIS_HOST:REDIS_PORT` and MongoDB on `MONGO_URI`.
 
 ## License
 

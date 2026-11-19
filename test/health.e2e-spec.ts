@@ -25,9 +25,9 @@ describe('Health (e2e)', () => {
     await app.close();
   });
 
-  it('reports redis as up', async () => {
+  it('reports mongo and redis as up', async () => {
     const res = await request(app.getHttpServer()).get('/health').expect(200);
 
-    expect(res.body).toEqual({ status: 'ok', redis: 'up' });
+    expect(res.body).toEqual({ status: 'ok', mongo: 'up', redis: 'up' });
   });
 });

@@ -23,6 +23,10 @@ class EnvironmentVariables {
   @Max(65535)
   REDIS_PORT: number;
 
+  @IsString()
+  @Matches(/^mongodb(\+srv)?:\/\//)
+  MONGO_URI: string;
+
   @IsNotEmpty()
   @IsString()
   JWT_SECRET: string;

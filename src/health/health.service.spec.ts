@@ -1,18 +1,34 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import Redis from 'ioredis';
+import { Connection, ConnectionStates } from 'mongoose';
 import { HealthService } from './health.service';
 
 describe('HealthService', () => {
   let ping: jest.Mock;
+  let connection: { readyState: ConnectionStates };
   let service: HealthService;
 
   beforeEach(() => {
     ping = jest.fn().mockResolvedValue('PONG');
-    service = new HealthService({ ping } as unknown as Redis);
+    connection = { readyState: ConnectionStates.connected };
+    service = new HealthService({ ping } as unknown as Redis, connection as unknown as Connection);
   });
 
   it('reports ok when redis answers', async () => {
-    await expect(service.check()).resolves.toEqual({ status: 'ok', redis: 'up' });
+    await expect(service.check()).resolves.toEqual({
+      status: 'ok',
+      mongo: 'up',
+      redis: 'up',
+    });
+  });
+
+  it('throws 503 when mongo is not connected', async () => {
+    connection.readyState = ConnectionStates.disconnected;
+
+    await expect(service.check()).rejects.toThrow(
+      new ServiceUnavailableException('mongo is not connected')
+    );
+    expect(ping).not.toHaveBeenCalled();
   });
 
   it('throws 503 when the ping fails', async () => {
