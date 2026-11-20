@@ -38,6 +38,10 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 | `room:leave` | `{ roomId }` | acks `{ roomId }` |
 | `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Saves the message to MongoDB, acks it and broadcasts `message:new` to the room |
 | `room:history` | `{ roomId, before?, limit? }` | the socket must have joined the room. Acks messages newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
+| `room:members` | `{ roomId }` | the socket must have joined the room. Acks `{ roomId, userIds }`, each user once however many sockets or instances they are on |
+| `presence:joined` / `presence:left` | `{ roomId, userId }` | server to room. Only sent when a user's first socket joins or their last socket leaves (leave, disconnect), and not to the sender |
+
+Presence is read from the live sockets through the Redis adapter (`fetchSockets`), so nothing is stored. The adapter waits up to 5s for every instance to answer, which is why `room:join` acks first and announces in the background.
 
 A bad payload or sending into a room you haven't joined makes the server emit `exception` with `{ status: 'error', message }`.
 

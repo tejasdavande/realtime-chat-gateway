@@ -17,6 +17,7 @@ import { ChatServer, ChatSocket } from './chat-socket';
 import { JoinRoomDto } from './dto/join-room.dto';
 import { RoomHistoryDto } from './dto/room-history.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { PresenceService } from './presence.service';
 import { RoomAccessService } from './room-access.service';
 import { roomName } from './room-name';
 
@@ -37,6 +38,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly socketAuth: SocketAuthService,
     private readonly roomAccess: RoomAccessService,
+    private readonly presence: PresenceService,
     private readonly messages: MessageService
   ) {}
 
@@ -48,6 +50,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   handleConnection(socket: ChatSocket) {
     this.logger.log(`connected userId=${socket.data.user.userId} socketId=${socket.id}`);
+    socket.on('disconnecting', () => this.announceDeparture(socket));
+  }
+
+  private announceDeparture(socket: ChatSocket) {
+    for (const room of [...socket.rooms]) {
+      if (room.startsWith('room:')) {
+        void this.announce(socket, room.slice('room:'.length), 'presence:left');
+      }
+    }
   }
 
   handleDisconnect(socket: ChatSocket) {
@@ -60,16 +71,42 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       throw new WsException('forbidden');
     }
 
-    await socket.join(roomName(dto.roomId));
+    const room = roomName(dto.roomId);
+    const alreadyIn = socket.rooms.has(room);
+    await socket.join(room);
+
+    if (!alreadyIn) {
+      void this.announce(socket, dto.roomId, 'presence:joined');
+    }
 
     return { roomId: dto.roomId };
   }
 
   @SubscribeMessage('room:leave')
   async leaveRoom(@ConnectedSocket() socket: ChatSocket, @MessageBody() dto: JoinRoomDto) {
-    await socket.leave(roomName(dto.roomId));
+    const room = roomName(dto.roomId);
+    const wasIn = socket.rooms.has(room);
+    await socket.leave(room);
+
+    if (wasIn) {
+      void this.announce(socket, dto.roomId, 'presence:left');
+    }
 
     return { roomId: dto.roomId };
+  }
+
+  @SubscribeMessage('room:members')
+  async members(@ConnectedSocket() socket: ChatSocket, @MessageBody() dto: JoinRoomDto) {
+    if (!socket.rooms.has(roomName(dto.roomId))) {
+      throw new WsException('not in room');
+    }
+
+    try {
+      return { roomId: dto.roomId, userIds: await this.presence.members(this.server, dto.roomId) };
+    } catch (error) {
+      this.logger.warn(`could not list members of room ${dto.roomId}: ${errorReason(error)}`);
+      throw new WsException('could not list members');
+    }
   }
 
   @SubscribeMessage('message:send')
@@ -97,6 +134,24 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     return await this.messages.history(dto.roomId, dto.limit, dto.before);
+  }
+
+  private async announce(
+    socket: ChatSocket,
+    roomId: string,
+    event: 'presence:joined' | 'presence:left'
+  ) {
+    const userId = socket.data.user.userId;
+
+    try {
+      if (await this.presence.hasOtherSocket(this.server, roomId, userId, socket.id)) {
+        return;
+      }
+
+      socket.to(roomName(roomId)).emit(event, { roomId, userId });
+    } catch (error) {
+      this.logger.warn(`could not announce ${event} for room ${roomId}: ${errorReason(error)}`);
+    }
   }
 
   private async saveMessage(dto: SendMessageDto, userId: string) {
