@@ -19,7 +19,7 @@ import { RoomHistoryDto } from './dto/room-history.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { PresenceService } from './presence.service';
 import { RoomAccessService } from './room-access.service';
-import { roomName } from './room-name';
+import { roomName, userRoom } from './room-name';
 
 @UsePipes(
   new ValidationPipe({
@@ -171,6 +171,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       return;
     }
 
+    await socket.join(userRoom(socket.data.user.userId));
     next();
   }
 }

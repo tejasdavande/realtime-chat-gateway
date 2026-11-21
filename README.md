@@ -45,6 +45,24 @@ Presence is read from the live sockets through the Redis adapter (`fetchSockets`
 
 A bad payload or sending into a room you haven't joined makes the server emit `exception` with `{ status: 'error', message }`.
 
+## Notifications
+
+Other backend services push notifications to users over HTTP, and every socket the user has open gets them, whichever instance it's connected to:
+
+```
+curl -X POST http://localhost:3000/notifications \
+  -H 'x-api-key: <NOTIFY_API_KEY>' -H 'content-type: application/json' \
+  -d '{"userIds":["<user id>"],"type":"order.paid","data":{"orderId":"..."}}'
+```
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/notifications` | needs `x-api-key` = `NOTIFY_API_KEY` (401 otherwise). `userIds` 1-1000 unique ids, `type` 1-64 chars of `a-z0-9._:-`, `data` an optional object. Returns 202 `{ id }` |
+
+Sockets get a `notification` event with `{ id, type, data, sentAt }`. Each socket joins a private `user:<userId>` room during the handshake, before `connect` fires, so a notification sent right after connecting isn't missed. Clients can't join those rooms themselves, because `room:join` only accepts plain room ids. A socket listed under several users still gets one copy.
+
+Delivery is fire-and-forget: users with no open socket don't get the notification later.
+
 ## Tests
 
 ```

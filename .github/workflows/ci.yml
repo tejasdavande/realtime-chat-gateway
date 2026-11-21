@@ -34,6 +34,7 @@ jobs:
       REDIS_PORT: 6379
       MONGO_URI: mongodb://localhost:27017/chat
       JWT_SECRET: ci-secret
+      NOTIFY_API_KEY: ci-notify-key-0123456789
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -7,6 +7,7 @@ import {
   Matches,
   Max,
   Min,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
@@ -30,6 +31,10 @@ class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   JWT_SECRET: string;
+
+  @IsString()
+  @MinLength(16)
+  NOTIFY_API_KEY: string;
 }
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {

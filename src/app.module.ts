@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ChatModule } from './chat/chat.module';
 import { validate } from './config/env.validator';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     HealthModule,
     ChatModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

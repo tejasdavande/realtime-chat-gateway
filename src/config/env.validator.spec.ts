@@ -8,6 +8,7 @@ describe('validate', () => {
     REDIS_PORT: '6379',
     MONGO_URI: 'mongodb://localhost:27017/chat',
     JWT_SECRET: 'secret',
+    NOTIFY_API_KEY: 'notify-key-0123456789',
   };
 
   it('converts PORT and REDIS_PORT to numbers', () => {
@@ -23,6 +24,11 @@ describe('validate', () => {
 
   it('rejects an empty JWT_SECRET', () => {
     expect(() => validate({ ...base, JWT_SECRET: '' })).toThrow();
+  });
+
+  it('rejects a missing or short NOTIFY_API_KEY', () => {
+    expect(() => validate({ ...base, NOTIFY_API_KEY: undefined })).toThrow();
+    expect(() => validate({ ...base, NOTIFY_API_KEY: 'short' })).toThrow();
   });
 
   it('rejects a MONGO_URI that is not a mongodb url', () => {
