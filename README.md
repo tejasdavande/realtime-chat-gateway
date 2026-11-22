@@ -57,11 +57,11 @@ curl -X POST http://localhost:3000/notifications \
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/notifications` | needs `x-api-key` = `NOTIFY_API_KEY` (401 otherwise). `userIds` 1-1000 unique ids, `type` 1-64 chars of `a-z0-9._:-`, `data` an optional object. Returns 202 `{ id }` |
+| `POST` | `/notifications` | needs `x-api-key` = `NOTIFY_API_KEY` (401 otherwise). `userIds` 1-1000 unique ids, `type` 1-64 chars of `a-z0-9._:-`, `data` an optional object. Returns 202 `{ id }`, or 503 when it can't be saved |
 
 Sockets get a `notification` event with `{ id, type, data, sentAt }`. Each socket joins a private `user:<userId>` room during the handshake, before `connect` fires, so a notification sent right after connecting isn't missed. Clients can't join those rooms themselves, because `room:join` only accepts plain room ids. A socket listed under several users still gets one copy.
 
-Delivery is fire-and-forget: users with no open socket don't get the notification later.
+Every notification is saved to Mongo first, one copy per user (`notifications` collection), and only then emitted. If the save fails, the endpoint returns 503 and nothing is sent, so the caller can retry. Copies expire after 30 days through a TTL index on `sentAt`.
 
 ## Tests
 

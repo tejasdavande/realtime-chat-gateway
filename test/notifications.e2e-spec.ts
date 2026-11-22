@@ -1,10 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import { io, Socket } from 'socket.io-client';
+import { Model } from 'mongoose';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { UserNotification } from '../src/notifications/schemas/notification.schema';
 import { setupApp } from '../src/setup-app';
 
 describe('Notifications (e2e)', () => {
@@ -116,6 +119,28 @@ describe('Notifications (e2e)', () => {
     await onBob;
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(received).toHaveLength(1);
+  });
+
+  it('stores a copy for every user, including users who are offline', async () => {
+    const online = randomUUID();
+    const offline = randomUUID();
+    const socket = await connect(0, online);
+    const delivered = nextEvent(socket, 'notification');
+
+    const res = await notify({ userIds: [online, offline], type: 'ping' }).expect(202);
+    await delivered;
+
+    const model = apps[0].get<Model<UserNotification>>(getModelToken(UserNotification.name));
+    const stored = await model
+      .find({ notificationId: res.body.id })
+      .sort({ userId: 1 })
+      .lean()
+      .exec();
+
+    expect(stored.map((doc) => doc.userId)).toEqual([online, offline].sort());
+    for (const doc of stored) {
+      expect(doc).toMatchObject({ type: 'ping', data: {}, readAt: null });
+    }
   });
 
   it('rejects a missing or wrong api key', async () => {

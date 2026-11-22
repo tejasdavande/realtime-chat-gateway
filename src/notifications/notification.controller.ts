@@ -10,7 +10,9 @@ export class NotificationController {
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
-  notify(@Body() dto: NotifyDto) {
-    return { id: this.notifications.notify(dto).id };
+  async notify(@Body() dto: NotifyDto) {
+    const notification = await this.notifications.notify(dto);
+
+    return { id: notification.id };
   }
 }
