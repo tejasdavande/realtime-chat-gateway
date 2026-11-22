@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ApiKeyGuard } from './api-key.guard';
+import { NotificationInboxService } from './notification-inbox.service';
 import { NotificationController } from './notification.controller';
 import { NotificationGateway } from './notification.gateway';
 import { NotificationRepository } from './notification.repository';
@@ -12,6 +13,12 @@ import { UserNotification, UserNotificationSchema } from './schemas/notification
     MongooseModule.forFeature([{ name: UserNotification.name, schema: UserNotificationSchema }]),
   ],
   controllers: [NotificationController],
-  providers: [ApiKeyGuard, NotificationGateway, NotificationRepository, NotificationService],
+  providers: [
+    ApiKeyGuard,
+    NotificationGateway,
+    NotificationInboxService,
+    NotificationRepository,
+    NotificationService,
+  ],
 })
 export class NotificationsModule {}

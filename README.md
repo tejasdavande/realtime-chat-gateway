@@ -40,6 +40,8 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 | `room:history` | `{ roomId, before?, limit? }` | the socket must have joined the room. Acks messages newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 | `room:members` | `{ roomId }` | the socket must have joined the room. Acks `{ roomId, userIds }`, each user once however many sockets or instances they are on |
 | `presence:joined` / `presence:left` | `{ roomId, userId }` | server to room. Only sent when a user's first socket joins or their last socket leaves (leave, disconnect), and not to the sender |
+| `notification:unread` | `{ before?, limit? }` | acks the user's unread notifications newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
+| `notification:read` | `{ ids }` | 1-100 notification ids. Marks them read for this user only and acks `{ updated }`, the number that were still unread |
 
 Presence is read from the live sockets through the Redis adapter (`fetchSockets`), so nothing is stored. The adapter waits up to 5s for every instance to answer, which is why `room:join` acks first and announces in the background.
 
@@ -62,6 +64,8 @@ curl -X POST http://localhost:3000/notifications \
 Sockets get a `notification` event with `{ id, type, data, sentAt }`. Each socket joins a private `user:<userId>` room during the handshake, before `connect` fires, so a notification sent right after connecting isn't missed. Clients can't join those rooms themselves, because `room:join` only accepts plain room ids. A socket listed under several users still gets one copy.
 
 Every notification is saved to Mongo first, one copy per user (`notifications` collection), and only then emitted. If the save fails, the endpoint returns 503 and nothing is sent, so the caller can retry. Copies expire after 30 days through a TTL index on `sentAt`.
+
+A client that was offline catches up after connecting with `notification:unread` and marks what it has shown with `notification:read`. Read state is per user, so marking a notification read on one device also removes it from the unread list on the others.
 
 ## Tests
 

@@ -143,6 +143,81 @@ describe('Notifications (e2e)', () => {
     }
   });
 
+  it('lets a user who was offline fetch unread notifications and mark them read', async () => {
+    const userId = randomUUID();
+    const first = await notify({ userIds: [userId], type: 'order.paid', data: { orderId: 'o1' } });
+    const second = await notify({ userIds: [userId], type: 'ping' });
+
+    const socket = await connect(1, userId);
+    const unread = await socket.emitWithAck('notification:unread', {});
+
+    expect(unread).toEqual([
+      { id: second.body.id, type: 'ping', data: {}, sentAt: expect.any(String) },
+      {
+        id: first.body.id,
+        type: 'order.paid',
+        data: { orderId: 'o1' },
+        sentAt: expect.any(String),
+      },
+    ]);
+
+    expect(await socket.emitWithAck('notification:read', { ids: [first.body.id] })).toEqual({
+      updated: 1,
+    });
+    expect(await socket.emitWithAck('notification:read', { ids: [first.body.id] })).toEqual({
+      updated: 0,
+    });
+
+    const left = await socket.emitWithAck('notification:unread', {});
+    expect(left.map((n: { id: string }) => n.id)).toEqual([second.body.id]);
+  });
+
+  it("doesn't let a user mark someone else's notification read", async () => {
+    const alice = randomUUID();
+    const res = await notify({ userIds: [alice], type: 'ping' }).expect(202);
+
+    const mallory = await connect(0, randomUUID());
+    expect(await mallory.emitWithAck('notification:read', { ids: [res.body.id] })).toEqual({
+      updated: 0,
+    });
+    expect(await mallory.emitWithAck('notification:unread', {})).toEqual([]);
+
+    const aliceSocket = await connect(1, alice);
+    const unread = await aliceSocket.emitWithAck('notification:unread', {});
+    expect(unread.map((n: { id: string }) => n.id)).toEqual([res.body.id]);
+  });
+
+  it('pages unread notifications with before, newest first', async () => {
+    const userId = randomUUID();
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      ids.push((await notify({ userIds: [userId], type: 'ping' }).expect(202)).body.id);
+    }
+
+    const socket = await connect(0, userId);
+    const page1 = await socket.emitWithAck('notification:unread', { limit: 2 });
+    const page2 = await socket.emitWithAck('notification:unread', {
+      limit: 2,
+      before: page1[1].id,
+    });
+
+    expect([...page1, ...page2].map((n: { id: string }) => n.id)).toEqual([...ids].reverse());
+  });
+
+  it.each([
+    ['notification:unread', 'a limit over 100', { limit: 101 }],
+    ['notification:unread', 'a bad cursor', { before: 'nope' }],
+    ['notification:read', 'no ids', { ids: [] }],
+    ['notification:read', 'a bad id', { ids: ['nope'] }],
+  ])('%s rejects %s', async (event, _name, payload) => {
+    const socket = await connect(0, randomUUID());
+
+    const error = nextEvent(socket, 'exception');
+    socket.emit(event, payload);
+
+    expect(await error).toMatchObject({ status: 'error', message: 'invalid payload' });
+  });
+
   it('rejects a missing or wrong api key', async () => {
     await request(urls[0])
       .post('/notifications')
