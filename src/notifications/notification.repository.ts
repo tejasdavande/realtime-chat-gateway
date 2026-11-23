@@ -35,6 +35,22 @@ export class NotificationRepository {
     return await this.model.find(filter).sort({ notificationId: -1 }).limit(limit).exec();
   }
 
+  async findUnreadIds(userId: string, notificationIds: string[]): Promise<string[]> {
+    const docs = await this.model
+      .find(
+        {
+          userId,
+          notificationId: { $in: notificationIds.map((id) => new Types.ObjectId(id)) },
+          readAt: null,
+        },
+        { notificationId: 1 }
+      )
+      .lean()
+      .exec();
+
+    return docs.map((doc) => doc.notificationId.toHexString());
+  }
+
   async markRead(userId: string, notificationIds: string[]): Promise<number> {
     const result = await this.model.updateMany(
       {

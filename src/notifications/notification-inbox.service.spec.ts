@@ -4,7 +4,7 @@ import { NotificationRepository } from './notification.repository';
 import { UserNotificationDocument } from './schemas/notification.schema';
 
 describe('NotificationInboxService', () => {
-  const repository = { findUnread: jest.fn(), markRead: jest.fn() };
+  const repository = { findUnread: jest.fn(), findUnreadIds: jest.fn(), markRead: jest.fn() };
   const service = new NotificationInboxService(repository as unknown as NotificationRepository);
 
   const doc = (id: string, type: string) =>
@@ -17,6 +17,7 @@ describe('NotificationInboxService', () => {
 
   beforeEach(() => {
     repository.findUnread.mockReset();
+    repository.findUnreadIds.mockReset();
     repository.markRead.mockReset();
   });
 
@@ -37,10 +38,22 @@ describe('NotificationInboxService', () => {
     expect(repository.findUnread).toHaveBeenCalledWith('alice', 20, '6740a1b2c3d4e5f601234569');
   });
 
-  it('marks read only for the given user', async () => {
-    repository.markRead.mockResolvedValue(2);
+  it('marks only the unread ones and returns which they were', async () => {
+    repository.findUnreadIds.mockResolvedValue(['b']);
+    repository.markRead.mockResolvedValue(1);
 
-    await expect(service.markRead('alice', ['a', 'b'])).resolves.toBe(2);
-    expect(repository.markRead).toHaveBeenCalledWith('alice', ['a', 'b']);
+    await expect(service.markRead('alice', ['a', 'b'])).resolves.toEqual({
+      updated: 1,
+      ids: ['b'],
+    });
+    expect(repository.findUnreadIds).toHaveBeenCalledWith('alice', ['a', 'b']);
+    expect(repository.markRead).toHaveBeenCalledWith('alice', ['b']);
+  });
+
+  it('skips the write when none of them are unread', async () => {
+    repository.findUnreadIds.mockResolvedValue([]);
+
+    await expect(service.markRead('alice', ['a'])).resolves.toEqual({ updated: 0, ids: [] });
+    expect(repository.markRead).not.toHaveBeenCalled();
   });
 });

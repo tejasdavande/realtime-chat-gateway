@@ -42,6 +42,7 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 | `presence:joined` / `presence:left` | `{ roomId, userId }` | server to room. Only sent when a user's first socket joins or their last socket leaves (leave, disconnect), and not to the sender |
 | `notification:unread` | `{ before?, limit? }` | acks the user's unread notifications newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 | `notification:read` | `{ ids }` | 1-100 notification ids. Marks them read for this user only and acks `{ updated }`, the number that were still unread |
+| `notification:marked-read` | `{ ids }` | server to the user's other sockets, on any instance, after a `notification:read` that changed something. `ids` are only the ones that were still unread |
 
 Presence is read from the live sockets through the Redis adapter (`fetchSockets`), so nothing is stored. The adapter waits up to 5s for every instance to answer, which is why `room:join` acks first and announces in the background.
 
@@ -65,7 +66,7 @@ Sockets get a `notification` event with `{ id, type, data, sentAt }`. Each socke
 
 Every notification is saved to Mongo first, one copy per user (`notifications` collection), and only then emitted. If the save fails, the endpoint returns 503 and nothing is sent, so the caller can retry. Copies expire after 30 days through a TTL index on `sentAt`.
 
-A client that was offline catches up after connecting with `notification:unread` and marks what it has shown with `notification:read`. Read state is per user, so marking a notification read on one device also removes it from the unread list on the others.
+A client that was offline catches up after connecting with `notification:unread` and marks what it has shown with `notification:read`. Read state is per user, so marking a notification read on one device also removes it from the unread list on the others, and their open sockets get `notification:marked-read` right away so they can clear their badges without refetching.
 
 ## Tests
 

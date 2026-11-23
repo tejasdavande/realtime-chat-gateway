@@ -13,7 +13,7 @@ import { errorReason } from '../common/error-reason';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { UnreadNotificationsDto } from './dto/unread-notifications.dto';
 import { Notification } from './notification';
-import { NotificationInboxService } from './notification-inbox.service';
+import { MarkReadResult, NotificationInboxService } from './notification-inbox.service';
 
 @UsePipes(
   new ValidationPipe({
@@ -47,11 +47,19 @@ export class NotificationGateway {
 
   @SubscribeMessage('notification:read')
   async markRead(@ConnectedSocket() socket: ChatSocket, @MessageBody() dto: MarkReadDto) {
+    const { userId } = socket.data.user;
+    let result: MarkReadResult;
     try {
-      return { updated: await this.inbox.markRead(socket.data.user.userId, dto.ids) };
+      result = await this.inbox.markRead(userId, dto.ids);
     } catch (error) {
       this.logger.warn(`could not mark notifications read: ${errorReason(error)}`);
       throw new WsException('could not mark notifications read');
     }
+
+    if (result.updated > 0) {
+      socket.to(userRoom(userId)).emit('notification:marked-read', { ids: result.ids });
+    }
+
+    return { updated: result.updated };
   }
 }

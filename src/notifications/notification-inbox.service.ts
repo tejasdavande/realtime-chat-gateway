@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Notification, toNotification } from './notification';
 import { NotificationRepository } from './notification.repository';
 
+export interface MarkReadResult {
+  updated: number;
+  ids: string[];
+}
+
 @Injectable()
 export class NotificationInboxService {
   constructor(private readonly notifications: NotificationRepository) {}
@@ -12,7 +17,14 @@ export class NotificationInboxService {
     return page.map(toNotification);
   }
 
-  async markRead(userId: string, ids: string[]): Promise<number> {
-    return await this.notifications.markRead(userId, ids);
+  async markRead(userId: string, ids: string[]): Promise<MarkReadResult> {
+    const unread = await this.notifications.findUnreadIds(userId, ids);
+    if (unread.length === 0) {
+      return { updated: 0, ids: [] };
+    }
+
+    const updated = await this.notifications.markRead(userId, unread);
+
+    return { updated, ids: unread };
   }
 }

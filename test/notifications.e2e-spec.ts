@@ -172,6 +172,57 @@ describe('Notifications (e2e)', () => {
     expect(left.map((n: { id: string }) => n.id)).toEqual([second.body.id]);
   });
 
+  it("tells the user's other sockets which notifications were marked read", async () => {
+    const userId = randomUUID();
+    const first = await notify({ userIds: [userId], type: 'ping' }).expect(202);
+    const second = await notify({ userIds: [userId], type: 'ping' }).expect(202);
+
+    const phone = await connect(0, userId);
+    const laptop = await connect(1, userId);
+    const tablet = await connect(0, userId);
+    const someoneElse = await connect(1, randomUUID());
+
+    const onLaptop = nextEvent(laptop, 'notification:marked-read');
+    const onTablet = nextEvent(tablet, 'notification:marked-read');
+    const phoneQuiet = noEvent(phone, 'notification:marked-read');
+    const othersQuiet = noEvent(someoneElse, 'notification:marked-read');
+
+    expect(
+      await phone.emitWithAck('notification:read', { ids: [first.body.id, second.body.id] })
+    ).toEqual({ updated: 2 });
+
+    const expected = { ids: expect.arrayContaining([first.body.id, second.body.id]) };
+    expect(await onLaptop).toEqual(expected);
+    expect(await onTablet).toEqual(expected);
+    expect(await phoneQuiet).toBe(true);
+    expect(await othersQuiet).toBe(true);
+
+    const laptopQuiet = noEvent(laptop, 'notification:marked-read');
+    expect(await phone.emitWithAck('notification:read', { ids: [first.body.id] })).toEqual({
+      updated: 0,
+    });
+    expect(await laptopQuiet).toBe(true);
+  });
+
+  it('only syncs the ids that were still unread', async () => {
+    const userId = randomUUID();
+    const first = await notify({ userIds: [userId], type: 'ping' }).expect(202);
+    const second = await notify({ userIds: [userId], type: 'ping' }).expect(202);
+
+    const phone = await connect(0, userId);
+    const laptop = await connect(1, userId);
+
+    const synced = nextEvent(laptop, 'notification:marked-read');
+    await phone.emitWithAck('notification:read', { ids: [first.body.id] });
+    await synced;
+
+    const onLaptop = nextEvent(laptop, 'notification:marked-read');
+    expect(
+      await phone.emitWithAck('notification:read', { ids: [first.body.id, second.body.id] })
+    ).toEqual({ updated: 1 });
+    expect(await onLaptop).toEqual({ ids: [second.body.id] });
+  });
+
   it("doesn't let a user mark someone else's notification read", async () => {
     const alice = randomUUID();
     const res = await notify({ userIds: [alice], type: 'ping' }).expect(202);
