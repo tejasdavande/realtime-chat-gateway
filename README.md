@@ -28,7 +28,7 @@ socket.on('connect_error', (err) => console.log(err.message)); // "unauthorized"
 
 The token is checked against `JWT_SECRET` (HS256, the same secret auth-gateway-service signs with). A missing, forged or expired token fails the handshake with `unauthorized`, so the socket never connects.
 
-Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other.
+Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other. Its channels are prefixed with `SOCKET_IO_REDIS_KEY` (default `socket.io`); give each deployment its own when several share one Redis, otherwise they receive each other's broadcasts.
 
 ## Events
 
@@ -75,7 +75,7 @@ npm test
 npm run test:e2e
 ```
 
-The e2e tests need Redis on `REDIS_HOST:REDIS_PORT` and MongoDB on `MONGO_URI`.
+The e2e tests need Redis on `REDIS_HOST:REDIS_PORT` and MongoDB on `MONGO_URI`. Each suite gets its own `SOCKET_IO_REDIS_KEY` (`test/setup-env.ts`), so suites running in parallel on one Redis don't see each other's instances. Without that, `fetchSockets` in one suite waited on the apps of every other suite and stalled when one of them was shutting down.
 
 ## License
 

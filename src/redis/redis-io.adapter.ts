@@ -9,6 +9,7 @@ import { logConnectionState } from './log-connection-state';
 export class RedisIoAdapter extends IoAdapter {
   private readonly pubClient: Redis;
   private readonly subClient: Redis;
+  private readonly key: string;
 
   constructor(app: INestApplication) {
     super(app);
@@ -20,6 +21,7 @@ export class RedisIoAdapter extends IoAdapter {
       maxRetriesPerRequest: null,
     });
     this.subClient = this.pubClient.duplicate();
+    this.key = config.getOrThrow<string>('SOCKET_IO_REDIS_KEY');
     const logger = new Logger(RedisIoAdapter.name);
     logConnectionState(this.pubClient, logger, 'redis pub');
     logConnectionState(this.subClient, logger, 'redis sub');
@@ -27,7 +29,7 @@ export class RedisIoAdapter extends IoAdapter {
 
   createIOServer(port: number, options?: ServerOptions): Server {
     const server: Server = super.createIOServer(port, options);
-    server.adapter(createAdapter(this.pubClient, this.subClient));
+    server.adapter(createAdapter(this.pubClient, this.subClient, { key: this.key }));
 
     return server;
   }

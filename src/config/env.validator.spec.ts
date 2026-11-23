@@ -18,6 +18,15 @@ describe('validate', () => {
     expect(env.REDIS_PORT).toBe(6379);
   });
 
+  it('defaults SOCKET_IO_REDIS_KEY and rejects one with spaces or over 64 chars', () => {
+    expect(validate(base).SOCKET_IO_REDIS_KEY).toBe('socket.io');
+    expect(validate({ ...base, SOCKET_IO_REDIS_KEY: 'chat-staging' }).SOCKET_IO_REDIS_KEY).toBe(
+      'chat-staging'
+    );
+    expect(() => validate({ ...base, SOCKET_IO_REDIS_KEY: 'has space' })).toThrow();
+    expect(() => validate({ ...base, SOCKET_IO_REDIS_KEY: 'k'.repeat(65) })).toThrow();
+  });
+
   it('rejects a missing REDIS_HOST', () => {
     expect(() => validate({ ...base, REDIS_HOST: undefined })).toThrow();
   });

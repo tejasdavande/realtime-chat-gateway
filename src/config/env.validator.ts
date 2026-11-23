@@ -25,6 +25,10 @@ class EnvironmentVariables {
   REDIS_PORT: number;
 
   @IsString()
+  @Matches(/^[A-Za-z0-9._:-]{1,64}$/)
+  SOCKET_IO_REDIS_KEY = 'socket.io';
+
+  @IsString()
   @Matches(/^mongodb(\+srv)?:\/\//)
   MONGO_URI: string;
 
