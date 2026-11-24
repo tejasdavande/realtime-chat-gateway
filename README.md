@@ -2,7 +2,42 @@
 
 Real-time chat and notifications service on NestJS and Socket.io. Redis pub/sub lets it scale out to several instances, and JWT/RBAC gate the rooms.
 
-Work in progress.
+## Architecture
+
+```mermaid
+flowchart LR
+  C1[client] -- "socket.io + access token" --> A1[instance 1]
+  C2[client] -- "socket.io + access token" --> A2[instance 2]
+  S[other services] -- "POST /notifications + x-api-key" --> A1
+  A1 <-- "pub/sub, fetchSockets, rate limits" --> R[(Redis)]
+  A2 <--> R
+  A1 -- "messages, notifications" --> M[(MongoDB)]
+  A2 --> M
+```
+
+Instances keep no state of their own beyond the sockets connected to them. They share only Redis and MongoDB, so more can be added behind a load balancer. With the default transports a client starts on HTTP long-polling, which needs sticky sessions at the load balancer. Clients that connect with `transports: ['websocket']` don't.
+
+A message on its way from a client on instance 1 to a room member on instance 2:
+
+1. The handshake middleware verifies the access token, stores the user on the socket and joins it to its private `user:<userId>` room.
+2. `message:send` checks room membership, the room's access rule and the user's rate limit (a Redis counter).
+3. The message is saved to MongoDB, then emitted to `room:<roomId>`.
+4. The Socket.io Redis adapter publishes the emit on Redis. Every instance delivers it to its own sockets in that room.
+
+Presence (`room:members`, joined/left events) asks every instance for its sockets through the same adapter, so nothing about who is online is stored. Notifications come in over HTTP on any instance, are saved per user in MongoDB and are emitted to each user's `user:<userId>` room the same way.
+
+Code layout, one Nest module per folder in `src/`:
+
+- `auth`: verifies the handshake token (`SocketAuthService`)
+- `chat`: `ChatGateway` (rooms, messages, presence), room access rules and the message rate limit
+- `messages`: message schema, repository and history paging
+- `notifications`: `POST /notifications`, the per-user inbox and `NotificationGateway`
+- `redis`: the shared Redis client and the Socket.io Redis adapter
+- `health`: `GET /health`
+
+## Tech stack
+
+Node.js 22, TypeScript, NestJS 11, Socket.io 4 with `@socket.io/redis-adapter`, Redis 7 (ioredis), MongoDB 7 (Mongoose 8), JWT (`@nestjs/jwt`), class-validator, Jest with socket.io-client e2e tests against real Redis and MongoDB, Docker, GitHub Actions.
 
 ## Quick start
 
@@ -12,6 +47,8 @@ cp .env.example .env
 npm install
 npm run start:dev
 ```
+
+Or run the API in Docker too: `cp .env.example .env && docker compose up --build`. All settings are listed in `.env.example`.
 
 `GET /health` returns `{"status":"ok","mongo":"up","redis":"up"}`, or 503 when either is down.
 
@@ -29,6 +66,18 @@ socket.on('connect_error', (err) => console.log(err.message)); // "unauthorized"
 The token is checked against `JWT_SECRET` (HS256, the same secret auth-gateway-service signs with). A missing, forged or expired token fails the handshake with `unauthorized`, so the socket never connects.
 
 Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other. Its channels, and the rate limit counters, are prefixed with `SOCKET_IO_REDIS_KEY` (default `socket.io`); give each deployment its own when several share one Redis, otherwise they receive each other's broadcasts.
+
+## Room access
+
+Rooms are created on first join and there is no room registry, so access is decided by the room id's prefix and the `role` claim in the access token:
+
+| Room id | Join | Send |
+|---|---|---|
+| `admin-*` | admins only | admins only |
+| `announce-*` | anyone | admins only |
+| anything else | anyone | anyone |
+
+A denied join or send gets `exception` with message `forbidden`. The role is read from the token at the handshake, so a role change applies once the client reconnects with a new access token.
 
 ## Events
 
