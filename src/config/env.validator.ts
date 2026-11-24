@@ -39,6 +39,14 @@ class EnvironmentVariables {
   @IsString()
   @MinLength(16)
   NOTIFY_API_KEY: string;
+
+  @IsInt()
+  @Min(1)
+  MESSAGE_RATE_LIMIT: number = 20;
+
+  @IsInt()
+  @Min(1)
+  MESSAGE_RATE_WINDOW_SECONDS: number = 10;
 }
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {

@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
+import Redis from 'ioredis';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { setupApp } from '../src/setup-app';
@@ -144,6 +145,38 @@ describe('Chat rooms (e2e)', () => {
     const received = nextEvent<{ text: string }>(member, 'message:new');
     await admin.emitWithAck('message:send', { roomId, text: 'maintenance at 5' });
     expect(await received).toMatchObject({ text: 'maintenance at 5' });
+  });
+
+  it('rate limits a user across instances and leaves other users alone', async () => {
+    const roomId = randomUUID();
+    const userId = randomUUID();
+    const onFirst = await connect(0, userId);
+    const onSecond = await connect(1, userId);
+    const other = await connect(0, randomUUID());
+    await onFirst.emitWithAck('room:join', { roomId });
+    await onSecond.emitWithAck('room:join', { roomId });
+    await other.emitWithAck('room:join', { roomId });
+
+    for (let i = 0; i < 20; i++) {
+      const socket = i % 2 === 0 ? onFirst : onSecond;
+      await socket.emitWithAck('message:send', { roomId, text: `message ${i}` });
+    }
+
+    const error = nextEvent(onSecond, 'exception');
+    onSecond.emit('message:send', { roomId, text: 'one too many' });
+    expect(await error).toMatchObject({ status: 'error', message: 'rate limited' });
+
+    const history: unknown[] = await other.emitWithAck('room:history', { roomId, limit: 100 });
+    expect(history).toHaveLength(20);
+    expect(await other.emitWithAck('message:send', { roomId, text: 'hi' })).toMatchObject({
+      text: 'hi',
+    });
+
+    const ttl = await apps[0]
+      .get(Redis)
+      .ttl(`${process.env.SOCKET_IO_REDIS_KEY}:message-rate:${userId}`);
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(10);
   });
 
   it.each([

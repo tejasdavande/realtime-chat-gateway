@@ -27,6 +27,16 @@ describe('validate', () => {
     expect(() => validate({ ...base, SOCKET_IO_REDIS_KEY: 'k'.repeat(65) })).toThrow();
   });
 
+  it('defaults the message rate limit and rejects a zero limit or window', () => {
+    const env = validate(base);
+
+    expect(env.MESSAGE_RATE_LIMIT).toBe(20);
+    expect(env.MESSAGE_RATE_WINDOW_SECONDS).toBe(10);
+    expect(validate({ ...base, MESSAGE_RATE_LIMIT: '5' }).MESSAGE_RATE_LIMIT).toBe(5);
+    expect(() => validate({ ...base, MESSAGE_RATE_LIMIT: '0' })).toThrow();
+    expect(() => validate({ ...base, MESSAGE_RATE_WINDOW_SECONDS: '0' })).toThrow();
+  });
+
   it('rejects a missing REDIS_HOST', () => {
     expect(() => validate({ ...base, REDIS_HOST: undefined })).toThrow();
   });

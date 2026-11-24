@@ -17,6 +17,7 @@ import { ChatServer, ChatSocket } from './chat-socket';
 import { JoinRoomDto } from './dto/join-room.dto';
 import { RoomHistoryDto } from './dto/room-history.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { MessageRateLimitService } from './message-rate-limit.service';
 import { PresenceService } from './presence.service';
 import { RoomAccessService } from './room-access.service';
 import { roomName, userRoom } from './room-name';
@@ -39,7 +40,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     private readonly socketAuth: SocketAuthService,
     private readonly roomAccess: RoomAccessService,
     private readonly presence: PresenceService,
-    private readonly messages: MessageService
+    private readonly messages: MessageService,
+    private readonly rateLimit: MessageRateLimitService
   ) {}
 
   afterInit(server: ChatServer) {
@@ -119,6 +121,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     if (!this.roomAccess.canSend(socket.data.user, dto.roomId)) {
       throw new WsException('forbidden');
+    }
+
+    if (!(await this.rateLimit.tryConsume(socket.data.user.userId))) {
+      throw new WsException('rate limited');
     }
 
     const message = await this.saveMessage(dto, socket.data.user.userId);

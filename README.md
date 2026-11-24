@@ -28,7 +28,7 @@ socket.on('connect_error', (err) => console.log(err.message)); // "unauthorized"
 
 The token is checked against `JWT_SECRET` (HS256, the same secret auth-gateway-service signs with). A missing, forged or expired token fails the handshake with `unauthorized`, so the socket never connects.
 
-Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other. Its channels are prefixed with `SOCKET_IO_REDIS_KEY` (default `socket.io`); give each deployment its own when several share one Redis, otherwise they receive each other's broadcasts.
+Every instance uses the Socket.io Redis adapter, so a broadcast from one instance reaches sockets connected to any other. Its channels, and the rate limit counters, are prefixed with `SOCKET_IO_REDIS_KEY` (default `socket.io`); give each deployment its own when several share one Redis, otherwise they receive each other's broadcasts.
 
 ## Events
 
@@ -36,7 +36,7 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 |---|---|---|
 | `room:join` | `{ roomId }` | acks `{ roomId }`. `roomId` is 1-64 chars of `A-Za-z0-9_-` |
 | `room:leave` | `{ roomId }` | acks `{ roomId }` |
-| `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Saves the message to MongoDB, acks it and broadcasts `message:new` to the room |
+| `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Saves the message to MongoDB, acks it and broadcasts `message:new` to the room. Rate limited per user, see below |
 | `room:history` | `{ roomId, before?, limit? }` | the socket must have joined the room. Acks messages newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 | `room:members` | `{ roomId }` | the socket must have joined the room. Acks `{ roomId, userIds }`, each user once however many sockets or instances they are on |
 | `presence:joined` / `presence:left` | `{ roomId, userId }` | server to room. Only sent when a user's first socket joins or their last socket leaves (leave, disconnect), and not to the sender |
@@ -47,6 +47,8 @@ Every instance uses the Socket.io Redis adapter, so a broadcast from one instanc
 Presence is read from the live sockets through the Redis adapter (`fetchSockets`), so nothing is stored. The adapter waits up to 5s for every instance to answer, which is why `room:join` acks first and announces in the background.
 
 A bad payload or sending into a room you haven't joined makes the server emit `exception` with `{ status: 'error', message }`.
+
+Each user can send `MESSAGE_RATE_LIMIT` messages (default 20) per `MESSAGE_RATE_WINDOW_SECONDS` (default 10), counted in Redis across all their sockets and instances. Past that, `message:send` gets `exception` with message `rate limited` and nothing is saved. It's a fixed window that starts at the user's first message, so a burst at the edge of two windows can get up to twice the limit through. If Redis is down the limit is skipped rather than blocking chat; the outage is already logged by the Redis connection.
 
 ## Notifications
 
