@@ -15,6 +15,7 @@ import { MessageService } from '../messages/message.service';
 import { errorReason } from '../common/error-reason';
 import { ChatServer, ChatSocket } from './chat-socket';
 import { JoinRoomDto } from './dto/join-room.dto';
+import { OnlineUsersDto } from './dto/online-users.dto';
 import { RoomHistoryDto } from './dto/room-history.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MessageRateLimitService } from './message-rate-limit.service';
@@ -108,6 +109,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     } catch (error) {
       this.logger.warn(`could not list members of room ${dto.roomId}: ${errorReason(error)}`);
       throw new WsException('could not list members');
+    }
+  }
+
+  @SubscribeMessage('users:online')
+  async onlineUsers(@MessageBody() dto: OnlineUsersDto) {
+    try {
+      return { online: await this.presence.online(this.server, dto.userIds) };
+    } catch (error) {
+      this.logger.warn(`could not check online users: ${errorReason(error)}`);
+      throw new WsException('could not check online users');
     }
   }
 

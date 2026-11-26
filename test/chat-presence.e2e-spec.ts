@@ -139,6 +139,40 @@ describe('Chat presence (e2e)', () => {
     expect(await quiet).toBe(true);
   });
 
+  it('reports which users are online on any instance', async () => {
+    const phoneRoom = randomUUID();
+    const laptopRoom = randomUUID();
+    const alice = await connect(0, 'alice');
+    const bobPhone = await connect(1, 'bob');
+    const bobLaptop = await connect(1, 'bob');
+    await Promise.all([join(alice, phoneRoom), join(alice, laptopRoom)]);
+    await join(bobPhone, phoneRoom);
+    await nextEvent(alice, 'presence:joined');
+    await join(bobLaptop, laptopRoom);
+    await nextEvent(alice, 'presence:joined');
+    const ask = () => alice.emitWithAck('users:online', { userIds: ['bob', 'carol', 'alice'] });
+
+    expect(await ask()).toEqual({ online: ['bob', 'alice'] });
+
+    let left = nextEvent(alice, 'presence:left');
+    bobPhone.disconnect();
+    await left;
+    expect(await ask()).toEqual({ online: ['bob', 'alice'] });
+
+    left = nextEvent(alice, 'presence:left');
+    bobLaptop.disconnect();
+    await left;
+    expect(await ask()).toEqual({ online: ['alice'] });
+  });
+
+  it('rejects an online check without user ids', async () => {
+    const alice = await connect(0, 'alice');
+    const error = nextEvent<{ message: string }>(alice, 'exception');
+    alice.emit('users:online', { userIds: [] });
+
+    expect((await error).message).toBe('invalid payload');
+  });
+
   it('refuses the member list to sockets outside the room', async () => {
     const roomId = randomUUID();
     const alice = await connect(0, 'alice');

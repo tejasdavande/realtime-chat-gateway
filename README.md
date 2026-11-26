@@ -24,7 +24,7 @@ A message on its way from a client on instance 1 to a room member on instance 2:
 3. The message is saved to MongoDB, then emitted to `room:<roomId>`.
 4. The Socket.io Redis adapter publishes the emit on Redis. Every instance delivers it to its own sockets in that room.
 
-Presence (`room:members`, joined/left events) asks every instance for its sockets through the same adapter, so nothing about who is online is stored. Notifications come in over HTTP on any instance, are saved per user in MongoDB and are emitted to each user's `user:<userId>` room the same way.
+Presence (`room:members`, `users:online`, joined/left events) asks every instance for its sockets through the same adapter, so nothing about who is online is stored. Notifications come in over HTTP on any instance, are saved per user in MongoDB and are emitted to each user's `user:<userId>` room the same way.
 
 Code layout, one Nest module per folder in `src/`:
 
@@ -88,6 +88,7 @@ A denied join or send gets `exception` with message `forbidden`. The role is rea
 | `message:send` | `{ roomId, text }` | text is 1-2000 chars, the socket must have joined the room. Saves the message to MongoDB, acks it and broadcasts `message:new` to the room. Rate limited per user, see below |
 | `room:history` | `{ roomId, before?, limit? }` | the socket must have joined the room. Acks messages newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 | `room:members` | `{ roomId }` | the socket must have joined the room. Acks `{ roomId, userIds }`, each user once however many sockets or instances they are on |
+| `users:online` | `{ userIds }` | 1-100 user ids. Acks `{ online }`, the ones with at least one socket on any instance, in the order asked. Works for users you share no room with, e.g. a contact or DM list |
 | `presence:joined` / `presence:left` | `{ roomId, userId }` | server to room. Only sent when a user's first socket joins or their last socket leaves (leave, disconnect), and not to the sender |
 | `notification:unread` | `{ before?, limit? }` | acks the user's unread notifications newest first (`limit` 1-100, default 50); pass the oldest `id` you have as `before` to get the next page |
 | `notification:read` | `{ ids }` | 1-100 notification ids. Marks them read for this user only and acks `{ updated }`, the number that were still unread |

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ChatServer } from './chat-socket';
-import { roomName } from './room-name';
+import { roomName, userRoom } from './room-name';
 
 @Injectable()
 export class PresenceService {
@@ -8,6 +8,13 @@ export class PresenceService {
     const sockets = await server.in(roomName(roomId)).fetchSockets();
 
     return [...new Set(sockets.map((socket) => socket.data.user.userId))].sort();
+  }
+
+  async online(server: ChatServer, userIds: string[]): Promise<string[]> {
+    const sockets = await server.in(userIds.map(userRoom)).fetchSockets();
+    const online = new Set(sockets.map((socket) => socket.data.user.userId));
+
+    return userIds.filter((userId) => online.has(userId));
   }
 
   async hasOtherSocket(
