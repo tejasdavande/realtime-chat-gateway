@@ -2,6 +2,8 @@
 
 Real-time chat and notifications service on NestJS and Socket.io. Redis pub/sub lets it scale out to several instances, and JWT/RBAC gate the rooms.
 
+A single Socket.io server only knows about the sockets connected to it. Once there are two instances behind a load balancer, a message sent on one has to reach room members on the other, "who is in this room" has to count sockets everywhere, and a notification from another backend service has to find every device a user has open, whichever instance they landed on. This service does that with the Socket.io Redis adapter and keeps the parts that must survive a restart (message history, unread notifications) in MongoDB.
+
 ## Architecture
 
 ```mermaid
